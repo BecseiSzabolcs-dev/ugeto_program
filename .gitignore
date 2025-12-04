@@ -3,3 +3,5 @@
 /.venv
 /run.cmd
 /build
+/dist/csv
+/dist/ppt
