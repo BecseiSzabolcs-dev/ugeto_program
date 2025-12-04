@@ -1,4 +1,4 @@
-#hello world
+# hello world
 
 Ez a Python alkalmazás egy grafikus felhasználói felülettel (GUI) rendelkező eszköz, amelyet a ló- vagy agárversenyek (a kódban szereplő logikák alapján valószínűleg ügetőversenyek) hivatalos PDF-programjainak feldolgozására, a kivonatolt adatok szerkesztésére, valamint CSV fájlok és PowerPoint prezentációk generálására terveztek.
 
