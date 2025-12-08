@@ -5,3 +5,4 @@
 /build
 /dist/csv
 /dist/ppt
+/modules/__pycache__/
