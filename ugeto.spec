@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['ugeto.py'],
+    ['c:/Users/Becsei Szabolcs/Apps/projects/python/ugeto_program/ugeto.py'],
     pathex=[],
     binaries=[],
     datas=[],

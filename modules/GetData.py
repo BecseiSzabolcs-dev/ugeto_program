@@ -3,33 +3,110 @@ import requests
 import json
 from bs4 import BeautifulSoup
 
+
 class Futam:
     #Id;Daily;Title;Distance;Time;Start type;Opinion
-    def __init__(self,data):
+    def __init__(self,line=""):
+        if line!="":
+            try:
+                id, daily, title, dist, time, start, opinion = line.strip().split(";")
+            except:
+                id, daily, title, dist, time, start = line.strip().split(";")
+            self.id      = id
+            self.daily   = daily
+            self.title   = title
+            self.dist    = dist
+            self.time    = time
+            #self.track   = track
+            self.start   = start
+            try:
+                self.opinion = opinion
+            except:
+                self.opinion = ""
+        else:
+            self.id      = ""
+            self.daily   = ""
+            self.title   = ""
+            self.dist    = ""
+            self.time    = ""
+            self.track   = ""
+            self.start   = ""
+            self.opinion = ""
+
+
+    def load_json(self,data):
         self.id = data["id"]
-        self.daily = data["daily"]
+        self.daily = data["daily"].replace('.',"")
         self.title = data["title"]
         self.dist = data["distance"][:-1] if data["distance"][-1] == 'A' else data["distance"]
         self.time = data["time"]
         self.track = data["track"]
         self.start = "Autóstart!" if data["distance"][-1] == 'A' else "Fordulóstart!"
-        self.opnion = ""
+        self.opinion = ""
+        return self
+
+    #{'Id': '0', 'Daily': 'Q', 'Title': 'Q11 KVALIFIKÁCIÓ', 'Distance': '1800', 'Start time': '13:15', 'Start type': 'Autóstart!', 'Opinion': ''}
+    def load_dict(self,data):
+        self.id = data["Id"]
+        self.daily = data["Daily"].replace('.',"")
+        self.title = data["Title"]
+        self.dist = data["Distance"]
+        self.time = data["Start time"]
+        #self.track = data["track"]
+        self.start =  data["Start type"]
+        self.opinion =  data["Opinion"]
+        return self
+
     
     def __str__(self):
-        return f"{self.id};{self.daily};{self.title};{self.dist};{self.time};{self.start};{self.opnion}"
+        return f"{self.id};{self.daily};{self.title};{self.dist};{self.time};{self.start};{self.opinion}"
+    
+    def to_dict(self):
+        return {'Id': self.id, 'Daily': self.daily, 'Title': self.title, 'Distance': self.dist, 'Start time': self.time, 'Start type': self.start, 'Opinion': self.opinion}
   
-class Horses:
+class Horses: 
     #Horse Number;Horse Name;Horse Distance;Driver Name;Futam Number;is run
-    def __init__(self,data,Fnum):
+    def __init__(self, line=""):
+        if(line!=""):
+            Hnum, Hname, dist, DJname, Fnum, isRun  = line.strip().split(";")
+            self.Hnum   = Hnum
+            self.Hname  = Hname
+            self.dist   = dist
+            self.DJname = DJname
+            self.Fnum   = Fnum
+            self.isRun  = isRun
+        else:
+            self.Hnum   = ""
+            self.Hname  = ""
+            self.dist   = ""
+            self.DJname = ""
+            self.Fnum   = ""
+            self.isRun  = "0"
+
+    def load_json(self,data,Fnum):
         self.Hnum   = data['number']
         self.Hname  = data['name']
         self.dist   = data['distance']
         self.DJname = data['driver_jockey']
         self.Fnum   = Fnum
-        self.isRun  = 1
+        self.isRun  = "1"
+        return self
+    
+    #{'Start number': '7', 'Horse name': 'Zippy Boy', 'Distance': '1900', 'Driver name': 'Fazekas Andrea', 'Futam id': '10', 'Run': '1'}
+    def load_dict(self,data):
+        self.Hnum   = data['Start number']
+        self.Hname  = data['Horse name']
+        self.dist   = data['Distance']
+        self.DJname = data['Driver name']
+        self.Fnum   = data['Futam id']
+        self.isRun  = data['Run']
+        return self
 
     def __str__(self):
         return f"{self.Hnum};{self.Hname};{self.dist};{self.DJname};{self.Fnum};{self.isRun}"
+    
+    def to_dict(self):
+        return {'Start number': self.Hnum, 'Horse name': self.Hname, 'Distance': self.dist, 'Driver name': self.DJname, 'Futam id': self.Fnum, 'Run': self.isRun}
 
 
 class GetData:
@@ -121,10 +198,13 @@ class GetData:
 if __name__ == "__main__":
     data = GetData("https://mla.kincsempark.hu/racecards/trotting/2025-12-06")
     for ln in data.futam_data:
-        title = Futam(ln)
+        title = Futam()
+        title.load_json(ln)
         print(f"{title}")
         for horse in ln["participants"]:
-            print(f"        {Horses(horse,title.id)}")
+            Horse = Horses()
+            Horse.load_json(horse,title.id)
+            print(f"        {Horse}")
             
         
 
