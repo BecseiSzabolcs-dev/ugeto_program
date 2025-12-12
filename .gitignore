@@ -1,6 +1,7 @@
 /csv
 /ppt
 /.venv
+/venv
 /run.cmd
 /build
 /dist/csv
