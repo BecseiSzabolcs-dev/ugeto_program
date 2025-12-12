@@ -6,6 +6,11 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 import os
 
+try:
+    from .GetData import Futam, Horses
+except:
+    from GetData import Futam, Horses
+
 
 class MakePPT:
     def __init__(self,drivers,titles):
@@ -31,22 +36,20 @@ class MakePPT:
                 self.slide4(ppt,slide_layout,title,True)
 
             elif(self.titles[-1].id == title.id):
-                self.slide3(ppt,slide_layout,self.titles[title.id-1])
-                self.slide4(ppt,slide_layout,self.titles[title.id-1])
+                self.slide3(ppt,slide_layout,self.titles[int(title.id)-1])
+                self.slide4(ppt,slide_layout,self.titles[int(title.id)-1])
                 self.slide3(ppt,slide_layout,title,True)
                 self.slide4(ppt,slide_layout,title,True)
 
             else:
-                self.slide3(ppt,slide_layout,self.titles[title.id-1])
-                self.slide4(ppt,slide_layout,self.titles[title.id-1])
+                self.slide3(ppt,slide_layout,self.titles[int(title.id)-1])
+                self.slide4(ppt,slide_layout,self.titles[int(title.id)-1])
 
             self.slide5(ppt,slide_layout)
 
             file_name = ""
-            if(title.id < len(self.rome_num)):
-                file_name =f".\\ppt\\{self.rome_num[title.id]}. futam.pptx"
-            else:
-                file_name =f".\\ppt\\X{self.rome_num[title.id-10]}. futam.pptx"
+            file_name =f".\\ppt\\{title.daily}. futam.pptx"
+
             
             ppt.save(file_name)
 
@@ -64,8 +67,9 @@ class MakePPT:
         title_frame = title_box.text_frame
         
         title = title_frame.add_paragraph()
-        if futam.id < len(self.rome_num): title_str = f"{self.rome_num[futam.id]}. {futam.title}".strip()
-        else:                             title_str = f"X{self.rome_num[futam.id-10]}. {futam.title}".strip()
+        #print(futam)
+        title_str = f"{futam.daily}. {futam.title}".strip()
+
         title.text = title_str
         if   (len(title_str) < 39 ): title.font.size = Pt(45)
         elif (len(title_str) <= 58): title.font.size = Pt(40)
@@ -94,7 +98,7 @@ class MakePPT:
         data_frame = data_box.text_frame
         
         data_text = data_frame.add_paragraph()
-        data_text.text = f"{futam.dist} m\n{futam.stype}"
+        data_text.text = f"{futam.dist} m\n{futam.start}"
 
         data_text.font.size = Pt(36)
         data_text.font.bold = True
@@ -149,7 +153,7 @@ class MakePPT:
         opinion_frame.vertical_anchor = MSO_ANCHOR.TOP
 
     def slide2(self,ppt,slide_layout,futam):
-        drivers_list = [driver for driver in self.drivers if driver.futam == futam.id]
+        drivers_list = [driver for driver in self.drivers if driver.Fnum == futam.id]
 
         slide2 = ppt.slides.add_slide(slide_layout)
         #slide2.slide_show.transition.duration = 50
@@ -181,7 +185,7 @@ class MakePPT:
             #driver side
             
             driver = driver_frame.add_paragraph()
-            driver.text = f"{row.Dname}"
+            driver.text = f"{row.DJname}"
             driver.font.size = Pt(32)
             driver.font.bold = False
             driver.font.color.rgb = RGBColor(255, 255, 255)
@@ -204,8 +208,8 @@ class MakePPT:
         
         title = title_frame.add_paragraph()
         
-        if futam.id < len(self.rome_num): title_str = f"{self.rome_num[futam.id]}. {futam.title}".strip()
-        else:                             title_str = f"X{self.rome_num[futam.id-10]}. {futam.title}".strip()
+        title_str = f"{futam.daily}. {futam.title}".strip()
+
         title.text = title_str
         if   (len(title_str) < 39 ): title.font.size = Pt(45)
         elif (len(title_str) <= 58): title.font.size = Pt(40)
@@ -271,8 +275,8 @@ class MakePPT:
         title = title_frame.add_paragraph()
 
             
-        if futam.id < len(self.rome_num): title_str = f"{self.rome_num[futam.id]}. {futam.title}".strip()
-        else:                             title_str = f"X{self.rome_num[futam.id-10]}. {futam.title}".strip()
+        title_str = f"{futam.daily}. {futam.title}".strip()
+
         title.text = title_str
         if   (len(title_str) < 39 ): title.font.size = Pt(45)
         elif (len(title_str) <= 58): title.font.size = Pt(40)
@@ -349,3 +353,21 @@ class MakePPT:
         wb = wx.Book("add macro.xlsm")
         macro1 = wb.macro("Module1.SetPPTSlidesFromFolderAndExitExcel")
         macro1()
+
+if __name__ == "__main__":
+    titles = []
+    drivers = []
+    with open("./csv/titles_data.csv",'r',encoding="utf-8") as f:
+        fs = f.readline()
+        for ln in f: 
+            #print(ln.strip())
+            titles.append(Futam(ln))
+
+    with open("./csv/drivers_data.csv",'r',encoding="utf-8") as f:
+        fs = f.readline()
+        for ln in f: drivers.append(Horses(ln))
+
+    MakePPT(drivers,titles)
+    print("Id;Daily;Title;Distance;Start time;Start type;Opinion")
+    for i in titles: print(i)
+

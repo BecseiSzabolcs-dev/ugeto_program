@@ -26,12 +26,12 @@ from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, QModelIndex
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from modules import *
+import requests
 # Optional libraries
 try:
     import pandas as pd
 except Exception:
     pd = None
-
 try:
     from pptx import Presentation
     from pptx.util import Inches, Pt
@@ -46,7 +46,7 @@ PPT_DIR.mkdir(exist_ok=True)
 
 
 class EditableTable(QWidget):
-    """A small reusable widget: search box + table + add/delete buttons"""
+    """Reusable Excel-like editable table with search, add, delete, resizable columns"""
 
     def __init__(self, columns, parent=None):
         super().__init__(parent)
@@ -54,26 +54,45 @@ class EditableTable(QWidget):
         self.model = QStandardItemModel(0, len(columns), self)
         self.model.setHorizontalHeaderLabels(columns)
 
+        # --- FILTER + SORT ---
         self.proxy = QSortFilterProxyModel(self)
         self.proxy.setSourceModel(self.model)
-        self.proxy.setFilterKeyColumn(-1)  # filter all columns
+        self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.proxy.setFilterKeyColumn(-1)
 
+
+        # --- TABLE ---
         self.table = QTableView()
         self.table.setModel(self.proxy)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.SelectedClicked)
 
+        # Excel-like full manual resize (NOW WORKS)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(40)
+
+        # Selection + editing behavior
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked |
+            QAbstractItemView.EditTrigger.EditKeyPressed |
+            QAbstractItemView.EditTrigger.AnyKeyPressed
+        )
+        self.table.verticalHeader().setVisible(True)  # show row numbers
+
+        # --- SEARCH field ---
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Keresés...")
+        self.search.setPlaceholderText("Keresés…")
         self.search.textChanged.connect(self.on_search)
 
+        # --- BUTTONS ---
         add_btn = QPushButton("Sor hozzáadása")
         del_btn = QPushButton("Sor törlése")
-        add_btn.clicked.connect(self.add_row)
+        add_btn.clicked.connect(lambda: self.add_row())
         del_btn.clicked.connect(self.delete_selected_row)
 
+        # Layout top row (search + buttons)
         h = QHBoxLayout()
         h.addWidget(self.search)
         h.addWidget(add_btn)
@@ -83,46 +102,70 @@ class EditableTable(QWidget):
         layout.addLayout(h)
         layout.addWidget(self.table)
 
+    # -----------------------------------
+    # FILTER
+    # -----------------------------------
     def on_search(self, text):
         self.proxy.setFilterFixedString(text)
 
+    # -----------------------------------
+    # ADD ROW SAFELY (supports sorting!)
+    # -----------------------------------
     def add_row(self, values=None):
         if values is None:
             values = ["" for _ in self.columns]
-        row = [QStandardItem(str(v)) for v in values]
-        for it in row:
+
+        # Insert into source model (not proxy)
+        row_items = [QStandardItem(str(v)) for v in values]
+        for it in row_items:
             it.setEditable(True)
-        self.model.appendRow(row)
-        # select newly added row in the view
-        idx = self.model.index(self.model.rowCount() - 1, 0)
-        proxy_idx = self.proxy.mapFromSource(idx)
+
+        self.model.appendRow(row_items)
+
+        # Scroll + focus new row
+        source_idx = self.model.index(self.model.rowCount() - 1, 0)
+        proxy_idx = self.proxy.mapFromSource(source_idx)
         self.table.scrollTo(proxy_idx)
         self.table.setCurrentIndex(proxy_idx)
-        self.table.edit(proxy_idx)
 
+    # -----------------------------------
+    # DELETE ROW (works even when sorted)
+    # -----------------------------------
     def delete_selected_row(self):
         sel = self.table.selectionModel().currentIndex()
         if not sel.isValid():
             QMessageBox.information(self, "Törlés", "Nincs kiválasztott sor.")
             return
-        src = self.proxy.mapToSource(sel)
-        self.model.removeRow(src.row())
 
+        source_idx = self.proxy.mapToSource(sel)
+        self.model.removeRow(source_idx.row())
+
+    # -----------------------------------
+    # EXPORT TABLE CONTENT
+    # -----------------------------------
     def to_list_of_dicts(self):
         rows = []
         for r in range(self.model.rowCount()):
             d = {}
-            for c, name in enumerate(self.columns):
-                it = self.model.item(r, c)
-                d[name] = it.text() if it is not None else ""
+            for c, col_name in enumerate(self.columns):
+                item = self.model.item(r, c)
+                d[col_name] = item.text() if item else ""
             rows.append(d)
         return rows
 
-    def load_from_list_of_dicts(self, data):
+    # -----------------------------------
+    # LOAD OBJECTS AUTOMATICALLY
+    # -----------------------------------
+    def load_from_objects(self, data, mapping):
         self.model.removeRows(0, self.model.rowCount())
-        for row in data:
-            vals = [row.get(k, "") for k in self.columns]
-            self.add_row(vals)
+
+        for obj in data:
+            values = [str(getattr(obj, attr, "")) for _, attr in mapping]
+            self.add_row(values)
+
+        self.table.resizeColumnsToContents()
+        self.table.resizeRowsToContents()
+
 
 
 class MainWindow(QMainWindow):
@@ -153,14 +196,14 @@ class MainWindow(QMainWindow):
         # Tabs for Titles and Drivers
         self.tabs = QTabWidget()
 
-        titles_columns = ["Azonosító", "Cím", "Táv", "Időpont", "Start típusa", "Vélemény"]
-        drivers_columns = ["Lószám", "Lónév", "Táv", "Hajtó neve", "Futam száma", "Futott-e"]
+        self.titles_header  = ["Id","Daily", "Title", "Distance", "Start time", "Start type", "Opinion"]
+        self.drivers_header = ["Start number", "Horse name", "Distance", "Driver name", "Futam id", "Run"]
 
-        self.titles_widget = EditableTable(titles_columns)
-        self.drivers_widget = EditableTable(drivers_columns)
+        self.titles_widget  = EditableTable(self.titles_header)
+        self.drivers_widget = EditableTable(self.drivers_header)
 
-        self.tabs.addTab(self.titles_widget, "Titles (Címek)")
-        self.tabs.addTab(self.drivers_widget, "Drivers (Hajtók)")
+        self.tabs.addTab(self.titles_widget, "Titles")
+        self.tabs.addTab(self.drivers_widget, "Drivers")
 
         # Central layout
         central = QWidget()
@@ -185,100 +228,125 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Betöltött PDF: {path}")
 
         pdf_data = ReadPDF(path)
+        self.titles = pdf_data.futams
+        self.drivers = pdf_data.horses
+
+        self.titles_columns = [
+            ("Id", "id"),
+            ("Daily", "daily"),
+            ("Title", "title"),
+            ("Distance", "dist"),
+            ("Start time", "time"),
+            ("Start type", "start"),
+            ("Opinion", "opinion")
+        ]
         
+        self.drivers_columns = [
+            ("Start number", "Hnum"),
+            ("Horse name", "Hname"),
+            ("Distance", "dist"),
+            ("Driver name", "DJname"),
+            ("Futam id", "Fnum"),
+            ("Run", "isRun")
+        ]
+        
+        #load_from_list_of_obj
+        self.titles_widget.load_from_objects(self.titles,self.titles_columns)
+        #load_from_list_of_obj
+        self.drivers_widget.load_from_objects(self.drivers,self.drivers_columns)
 
-        """
-        for ln in data.futam_data:
-            title = Futam(ln)
-            print(f"{title}")
-            for horse in ln["participants"]:
-                print(f"        {Horses(horse,title.id)}")
-        """
+        self.titles_widget.table.resizeColumnsToContents()
+        self.titles_widget.table.resizeRowsToContents()
 
-
-        #self.titles_widget.load_from_list_of_dicts(titles_sample)
-        #self.drivers_widget.load_from_list_of_dicts(drivers_sample)
-        QMessageBox.information(self, "PDF betöltve", "A PDF feldolgozása kész (példaadatok hozzáadva). Cseréld ki a parse_pdf helyen a logikát.")
+        self.drivers_widget.table.resizeColumnsToContents()
+        self.drivers_widget.table.resizeRowsToContents()
+        QMessageBox.information(self, "PDF betöltve", "A PDF feldolgozása kész")
 
     def save_csv(self):
         # Ensure directories exist
         CSV_DIR.mkdir(exist_ok=True)
+        if not self.titles_widget.to_list_of_dicts() and not self.drivers_widget.to_list_of_dicts():
+            self.load_pdf()
+
         titles = self.titles_widget.to_list_of_dicts()
         drivers = self.drivers_widget.to_list_of_dicts()
+        self.titles = []
+        self.drivers = []
 
-        titles_file = CSV_DIR / "titles_data.csv"
-        drivers_file = CSV_DIR / "drivers_data.csv"
+        for ln in drivers: 
+            driver = Horses()
+            self.drivers.append(driver.load_dict(ln))
 
-        # Use pandas if available for nicer formatting, else csv module
-        try:
-            if pd is not None:
-                pd.DataFrame(titles).to_csv(titles_file, index=False, encoding='utf-8')
-                pd.DataFrame(drivers).to_csv(drivers_file, index=False, encoding='utf-8')
-            else:
-                # Write titles
-                with titles_file.open('w', encoding='utf-8', newline='') as f:
-                    writer = csv.DictWriter(f, fieldnames=self.titles_widget.columns)
-                    writer.writeheader()
-                    writer.writerows(titles)
-                # Write drivers
-                with drivers_file.open('w', encoding='utf-8', newline='') as f:
-                    writer = csv.DictWriter(f, fieldnames=self.drivers_widget.columns)
-                    writer.writeheader()
-                    writer.writerows(drivers)
-            self.status.showMessage(f"CSV-ek mentve: {titles_file} és {drivers_file}")
-            QMessageBox.information(self, "CSV mentés", f"A fájlok sikeresen mentve:\n{titles_file}\n{drivers_file}")
-        except Exception as e:
-            QMessageBox.critical(self, "Hiba", f"CSV mentése sikertelen: {e}")
+        
+        for ln in titles: 
+            title = Futam()
+            self.titles.append(title.load_dict(ln))
+        
+        title_header = ";".join(self.titles_header)+"\n"
+        driver_header = ";".join(self.drivers_header)+"\n"
+
+        with open("./csv/titles_data.csv",'w',encoding="utf-8") as f:
+            f.write(title_header)
+            for ln in self.titles:
+                f.write(str(ln)+"\n")
+
+        with open("./csv/drivers_data.csv",'w',encoding="utf-8") as f:
+            f.write(driver_header)
+            for ln in self.drivers:
+                f.write(str(ln)+"\n")
+        
 
     def make_ppt(self):
-        if Presentation is None:
-            QMessageBox.warning(self, "pptx hiányzik", "A python-pptx csomag nincs telepítve. Telepítsd: pip install python-pptx")
-            return
-
         PPT_DIR.mkdir(exist_ok=True)
-        titles = self.titles_widget.to_list_of_dicts()
-        drivers = self.drivers_widget.to_list_of_dicts()
+        
+        if not self.titles_widget.to_list_of_dicts() and not self.drivers_widget.to_list_of_dicts() and os.path.exists("./csv/drivers_data.csv") and os.path.exists("./csv/titles_data.csv"):
+            titles = []
+            drivers = []
+            with open("./csv/titles_data.csv",'r',encoding="utf-8") as f:
+                fs = f.readline()
+                for ln in f: 
+                    #print(ln.strip())
+                    titles.append(Futam(ln))
 
-        # Create a ppt for each title (futam)
-        try:
-            for t in titles:
-                prs = Presentation()
-                slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank
-                left = Inches(0.5)
-                top = Inches(0.5)
-                width = Inches(9)
-                height = Inches(1.0)
-                title_box = slide.shapes.add_textbox(left, top, width, height)
-                tf = title_box.text_frame
-                tf.text = f"{t.get('Azonosító','')} - {t.get('Cím','')} ({t.get('Táv','')} m)"
-                p = tf.add_paragraph()
-                p.text = f"Időpont: {t.get('Időpont','')}  Start: {t.get('Start típusa','')}"
+            with open("./csv/drivers_data.csv",'r',encoding="utf-8") as f:
+                fs = f.readline()
+                for ln in f: drivers.append(Horses(ln))
 
-                # Add participants table
-                part_slide = prs.slides.add_slide(prs.slide_layouts[5])
-                rows = 1 + sum(1 for d in drivers if d.get('Futam száma') == t.get('Azonosító'))
-                cols = len(self.drivers_widget.columns)
-                table_shape = part_slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.0), Inches(9), Inches(4)).table
-                # header
-                for c, name in enumerate(self.drivers_widget.columns):
-                    table_shape.cell(0, c).text = name
-                r = 1
-                for d in drivers:
-                    if d.get('Futam száma') == t.get('Azonosító'):
-                        for c, name in enumerate(self.drivers_widget.columns):
-                            table_shape.cell(r, c).text = str(d.get(name, ''))
-                        r += 1
+            MakePPT(drivers,titles)
 
-                # Save with the title name safe-filename
-                safe = ''.join(ch for ch in f"{t.get('Azonosító','')}_{t.get('Cím','')}" if ch.isalnum() or ch in ' _-').strip()
-                filename = PPT_DIR / f"{safe}.pptx"
-                prs.save(filename)
+        elif(self.titles_widget.to_list_of_dicts() and self.drivers_widget.to_list_of_dicts()):
+            titles = self.titles_widget.to_list_of_dicts()
+            drivers = self.drivers_widget.to_list_of_dicts()
+            self.titles = []
+            self.drivers = []
 
-            QMessageBox.information(self, "PPT kész", f"PPT-k elkészítve a mappában: {PPT_DIR.resolve()}")
-            self.status.showMessage("PPT elkészítve")
-        except Exception as e:
-            QMessageBox.critical(self, "Hiba PPT", f"Hiba a PPT létrehozásakor: {e}")
+            for ln in drivers: 
+                driver = Horses()
+                self.drivers.append(driver.load_dict(ln))
 
+            for ln in titles: 
+                title = Futam()
+                self.titles.append(title.load_dict(ln))
+
+            MakePPT(self.drivers,self.titles)
+        else:
+            self.load_pdf()
+            self.save_csv()
+            titles = self.titles_widget.to_list_of_dicts()
+            drivers = self.drivers_widget.to_list_of_dicts()
+            self.titles = []
+            self.drivers = []
+
+            for ln in drivers: 
+                driver = Horses()
+                self.drivers.append(driver.load_dict(ln))
+
+            for ln in titles: 
+                title = Futam()
+                self.titles.append(title.load_dict(ln))
+
+            MakePPT(self.drivers,self.titles)
+            
     # Optional: override keyPressEvent to insert text to the selected cell when typing
     def keyPressEvent(self, event):
         key = event.key()
@@ -294,13 +362,31 @@ class MainWindow(QMainWindow):
                             return
         super().keyPressEvent(event)
 
+def is_connected():
+    try:
+        response = requests.get("https://mla.kincsempark.hu/", timeout=5)
+        return True
+    except requests.ConnectionError:
+        return False
 
 def main():
     app = QApplication(sys.argv)
+    
     w = MainWindow()
-    w.show()
-    sys.exit(app.exec())
+    if is_connected():
+        if os.path.exists("./clock.jpeg"):
+            if os.path.exists("./add macro.xlsm"):
+                w.show()
+            else:
+                QMessageBox.critical(w,"Error","Can't find \"add macro.xlsm\"")
+        else:
+            QMessageBox.critical(w,"Error","Can't find \"clock.jpeg\"")
 
+    else:
+        QMessageBox.critical(w,"Error","Can't connect to https://mla.kincsempark.hu/")
+        return
+
+    sys.exit(app.exec())
 
 if __name__ == '__main__':
     main()
