@@ -375,10 +375,10 @@ def main():
     w = MainWindow()
     if is_connected():
         if os.path.exists("./clock.jpeg"):
-            if os.path.exists("./add macro.xlsm"):
+            if os.path.exists("./add_macro.xlsm"):
                 w.show()
             else:
-                QMessageBox.critical(w,"Error","Can't find \"add macro.xlsm\"")
+                QMessageBox.critical(w,"Error","Can't find \"add_macro.xlsm\"")
         else:
             QMessageBox.critical(w,"Error","Can't find \"clock.jpeg\"")
 
