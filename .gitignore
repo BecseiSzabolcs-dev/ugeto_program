@@ -6,4 +6,5 @@
 /build
 /dist/csv
 /dist/ppt
+/dist/ugeto/
 /modules/__pycache__/

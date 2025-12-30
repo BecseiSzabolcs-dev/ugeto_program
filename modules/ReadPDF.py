@@ -4,10 +4,10 @@ try:
     from .GetData import GetData, Futam, Horses
 except:
     from GetData import GetData, Futam, Horses
+import re
 
 def removeTXT(search, txt):
-    if " "+search in txt: return txt[0:txt.index(" "+search)]
-    elif search+" " in txt:   return txt[0:txt.index(search)]
+    if search in txt:   return txt[0:txt.index(search)]
     else:                 return txt
 
 def remove_dupl(li:list):
@@ -18,7 +18,12 @@ def remove_dupl(li:list):
     
     return ndli
 
-                       
+def clean_opinion(txt):
+    # Find the last occurrence of ')' that belongs to a horse and cut after it
+    match = re.search(r'(.*\(\d+\))', txt)
+    if match:
+        return match.group(1)
+    return txt           
 
 
 class ReadPDF:
@@ -70,8 +75,12 @@ class ReadPDF:
                         break
 
         for i, op in enumerate(opinions):
-            for num in range(9, 14):
-                opinions[i] = removeTXT(str(num), opinions[i])
+            opinions[i] = opinions[i].strip()
+            opinions[i] = opinions[i].replace("\n",' ')
+            opinions[i] = opinions[i].replace("\t",' ')
+            
+            #for num in range(9, 14):
+                #opinions[i] = removeTXT(str(num), opinions[i])
 
             opinions[i] = removeTXT("Elérhetőségek", opinions[i])
             opinions[i] = removeTXT("100.000 Ft", opinions[i])
@@ -79,10 +88,19 @@ class ReadPDF:
             opinions[i] = removeTXT("300.000 Ft", opinions[i])
             opinions[i] = removeTXT("101.190 Ft", opinions[i])
             opinions[i] = removeTXT("Esélyelemzés", opinions[i])
+            opinions[i] = removeTXT("Nyeregbe!", opinions[i])
+            opinions[i] = removeTXT("Az ügető", opinions[i])
+            opinions[i] = removeTXT("A futamban", opinions[i])
+            
+            opinions[i] = clean_opinion(opinions[i])
+
             #Véleményünk: 
             opinions[i] = opinions[i].replace("Véleményünk: ",'')
             opinions[i] = opinions[i].replace("Véleményünk:",'')
             opinions[i] = opinions[i].strip()
+            
+            
+            
 
         
         self.opinions = remove_dupl(opinions)
@@ -105,11 +123,11 @@ class ReadPDF:
 
 
 if __name__ == "__main__":
-    PDF_data = ReadPDF(r"C:\Users\Becsei Szabolcs\Downloads\versenyprogram_2025_12_13_ugeto.pdf")
+    PDF_data = ReadPDF(r"C:\Users\Becsei Szabolcs\Downloads\versenyprogram_2025_12_31_ugeto.pdf")
 
     print("titles:")
     for i in PDF_data.futams:
-        print(i)
+        print(i.opinion)
 
 
 
