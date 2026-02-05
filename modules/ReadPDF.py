@@ -5,6 +5,33 @@ try:
 except:
     from GetData import GetData, Futam, Horses
 import re
+import sys
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, 
+                             QPushButton, QDialog, QCalendarWidget, QLabel)
+from PyQt6.QtCore import QDate
+
+class DatePickerPopup(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Please select the race date.")
+        self.layout = QVBoxLayout(self)
+
+        # The Calendar Widget
+        self.calendar = QCalendarWidget(self)
+        self.calendar.setGridVisible(True)
+        
+        # Select Button
+        self.select_btn = QPushButton("Confirm Selection")
+        self.select_btn.clicked.connect(self.accept)
+
+        self.layout.addWidget(self.calendar)
+        self.layout.addWidget(self.select_btn)
+
+    def get_selected_date(self):
+        # Returns a QDate object
+        return self.calendar.selectedDate()
+
+
 
 def removeTXT(search, txt):
     if search in txt:   return txt[0:txt.index(search)]
@@ -28,13 +55,16 @@ def clean_opinion(txt):
 
 class ReadPDF:
 
-    def __init__(self, file_name):
+    def __init__(self, mainWindow=None, file_name=""):
         self.rome_num = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII","XIII","XIV"]
         self.horses = []
         self.futams = []
         self.opinions = []
         self.pdf = []
+        self.date = []
+        self.mainWindow = mainWindow
         self.read(file_name)
+        
 
 
     def read(self,file_name):
@@ -51,8 +81,23 @@ class ReadPDF:
             text = page.extract_text()
             self.pdf.append(text.split("\n"))
 
-        #print(file_name.split("/")[-1].split("_")[1:-1])
-        y,m,d = file_name.split("/")[-1].split("_")[1:-1]
+        if("\\" in file_name): date = file_name.replace(".pdf","").split("\\")[-1].split("_")
+        else:                  date = file_name.replace(".pdf","").split("/")[-1].split("_")
+        to_remove = {"ugeto", "versenyprogram"}
+        filtered_date = [item for item in date if item not in to_remove]
+        try:
+            y,m,d = filtered_date
+        except:
+            if self.mainWindow != None:
+                popup = DatePickerPopup(self.mainWindow)
+                if popup.exec():
+                    date = popup.get_selected_date()
+                    y,m,d =  date.toString("yyyy-MM-dd").split("-")
+            else:
+                date = input("pls give me date (yyyy-MM-dd): ").split("-")
+                if len(date) == 3: y,m,d = date 
+                else: print("faild to load data")
+
 
         data = GetData(f"https://mla.kincsempark.hu/racecards/trotting/{y}-{m}-{d}")
         for ln in data.futam_data:
@@ -123,7 +168,7 @@ class ReadPDF:
 
 
 if __name__ == "__main__":
-    PDF_data = ReadPDF(r"C:\Users\Becsei Szabolcs\Downloads\versenyprogram_2025_12_31_ugeto.pdf")
+    PDF_data = ReadPDF(file_name=r"C:\Users\Becsei Szabolcs\Downloads\versenyprogram_2025_12_31_ugeto.pdf")
 
     print("titles:")
     for i in PDF_data.futams:

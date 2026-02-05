@@ -180,14 +180,14 @@ class MainWindow(QMainWindow):
 
         load_pdf_act = QAction("Load PDF", self)
         load_pdf_act.setShortcut(QKeySequence("Ctrl+O"))
-        load_pdf_act.triggered.connect(self.load_pdf)
+        load_pdf_act.triggered.connect(lambda: self.load_pdf(self))
 
         save_csv_act = QAction("Save Data to CSV", self)
         save_csv_act.setShortcut(QKeySequence("Ctrl+S"))
-        save_csv_act.triggered.connect(self.save_csv)
+        save_csv_act.triggered.connect(lambda: self.save_csv(self))
 
         make_ppt_act = QAction("Make PPT", self)
-        make_ppt_act.triggered.connect(self.make_ppt)
+        make_ppt_act.triggered.connect(lambda: self.make_ppt(self))
 
         toolbar.addAction(load_pdf_act)
         toolbar.addAction(save_csv_act)
@@ -221,13 +221,13 @@ class MainWindow(QMainWindow):
         # Shortcuts: pressing any printable key will insert into selected cell
         self.table_widgets = [self.titles_widget.table, self.drivers_widget.table]
 
-    def load_pdf(self):
+    def load_pdf(self,mainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Open PDF", "", "PDF files (*.pdf);;All files (*)")
         if not path:
             return
         self.status.showMessage(f"Betöltött PDF: {path}")
 
-        pdf_data = ReadPDF(path)
+        pdf_data = ReadPDF(mainWindow=mainWindow,file_name=path)
         self.titles = pdf_data.futams
         self.drivers = pdf_data.horses
 
@@ -262,11 +262,11 @@ class MainWindow(QMainWindow):
         self.drivers_widget.table.resizeRowsToContents()
         QMessageBox.information(self, "PDF betöltve", "A PDF feldolgozása kész")
 
-    def save_csv(self):
+    def save_csv(self,mainWindow):
         # Ensure directories exist
         CSV_DIR.mkdir(exist_ok=True)
         if not self.titles_widget.to_list_of_dicts() and not self.drivers_widget.to_list_of_dicts():
-            self.load_pdf()
+            self.load_pdf(mainWindow)
 
         titles = self.titles_widget.to_list_of_dicts()
         drivers = self.drivers_widget.to_list_of_dicts()
@@ -296,7 +296,7 @@ class MainWindow(QMainWindow):
                 f.write(str(ln)+"\n")
         
 
-    def make_ppt(self):
+    def make_ppt(self,mainWindow):
         PPT_DIR.mkdir(exist_ok=True)
         
         if not self.titles_widget.to_list_of_dicts() and not self.drivers_widget.to_list_of_dicts() and os.path.exists("./csv/drivers_data.csv") and os.path.exists("./csv/titles_data.csv"):
@@ -330,8 +330,8 @@ class MainWindow(QMainWindow):
 
             MakePPT(self.drivers,self.titles)
         else:
-            self.load_pdf()
-            self.save_csv()
+            self.load_pdf(mainWindow)
+            self.save_csv(mainWindow)
             titles = self.titles_widget.to_list_of_dicts()
             drivers = self.drivers_widget.to_list_of_dicts()
             self.titles = []
