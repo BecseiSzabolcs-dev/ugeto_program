@@ -1,10 +1,13 @@
-import xlwings as wx
+#import xlwings as wx
+
+import os
 from pptx import Presentation
 from pptx.util import Inches,Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-import os
+from pptx.oxml.ns import qn, nsdecls
+from pptx.oxml import parse_xml
 
 try:
     from .GetData import Futam, Horses
@@ -48,12 +51,18 @@ class MakePPT:
             self.slide5(ppt,slide_layout)
 
             file_name = ""
-            file_name =f".\\ppt\\{title.daily}. futam.pptx"
-
+            file_name =f"./ppt/{title.daily}. futam.pptx"
             
+            
+            for slide in ppt.slides:
+                self.set_duration(slide,15)
+
+            self.set_looping(ppt)
             ppt.save(file_name)
 
-        self.run_vba_macro()
+            print(f"{file_name} created!")
+
+
         
     def slide1(self,ppt,slide_layout,futam):
         slide1 = ppt.slides.add_slide(slide_layout)
@@ -152,6 +161,7 @@ class MakePPT:
         opinion_frame.word_wrap = True 
         opinion_frame.vertical_anchor = MSO_ANCHOR.TOP
 
+        
     def slide2(self,ppt,slide_layout,futam):
         drivers_list = [driver for driver in self.drivers if driver.Fnum == futam.id]
 
@@ -193,6 +203,7 @@ class MakePPT:
             driver.alignment = PP_ALIGN.LEFT
             driver_frame.word_wrap = True 
             driver_frame.vertical_anchor = MSO_ANCHOR.TOP
+
 
     def slide3(self,ppt,slide_layout,futam,hide=False):
         slide3 = ppt.slides.add_slide(slide_layout)
@@ -347,12 +358,50 @@ class MakePPT:
         text.alignment = PP_ALIGN.CENTER
         text_frame.word_wrap = True 
         text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
-    
 
-    def run_vba_macro(self):
-        wb = wx.Book("add_macro.xlsm")
-        macro1 = wb.macro("Module1.SetPPTSlidesFromFolderAndExitExcel")
-        macro1()
+
+    def set_duration(self, slide, seconds):
+        """ Sets the 'Advance After' time with strict LibreOffice compatibility. """
+        ms = int(seconds * 1000)
+        
+        # Check if transition already exists
+        transition = slide.element.find(qn('p:transition'))
+        
+        if transition is None:
+            # We MUST include a transition type (like <p:fade/>) for LibreOffice
+            # We also set advClick="0" to prioritize the timer over mouse clicks
+            new_xml = (
+                f'<p:transition xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                f'spd="med" advClick="0" advTm="{ms}">'
+                f'<p:fade/>'
+                f'</p:transition>'
+            )
+            transition = parse_xml(new_xml)
+            # The transition tag MUST be appended at the end of the slide element
+            slide.element.append(transition)
+        else:
+            transition.set('advTm', str(ms))
+            transition.set('advClick', '0')
+            # If the existing transition is empty, add a fade effect
+            if len(transition.getchildren()) == 0:
+                transition.append(parse_xml('<p:fade xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>'))
+
+    def set_looping(self, ppt):
+        """Enable infinite looping slideshow (LibreOffice compatible)"""
+        
+        pres = ppt.element
+        showPr = pres.find(qn('p:showPr'))
+
+        if showPr is None:
+            showPr = parse_xml(
+                '<p:showPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                'loop="1" useTimings="1"/>'
+            )
+            pres.insert(0, showPr)
+        else:
+            showPr.set("loop", "1")
+            showPr.set("useTimings", "1")
+
 
 if __name__ == "__main__":
     titles = []

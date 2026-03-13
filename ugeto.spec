@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['c:/Users/Becsei Szabolcs/Apps/projects/python/ugeto_program/ugeto.py'],
+    ['ugeto.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['xlwings'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

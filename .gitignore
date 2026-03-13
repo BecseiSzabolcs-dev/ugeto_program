@@ -1,15 +1,12 @@
-/csv
-/ppt
+/csv/
+/ppt/
 /.venv
 /venv
 /run.cmd
 /build
 /dist/csv
 /dist/ppt
-<<<<<<< HEAD
 /modules/__pycache__/
-=======
 /dist/ugeto/
 /modules/__pycache__/
 ugeto.spec
->>>>>>> dev
