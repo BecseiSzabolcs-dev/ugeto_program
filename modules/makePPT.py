@@ -350,11 +350,7 @@ class MakePPT:
     
 
     def run_vba_macro(self):
-<<<<<<< HEAD
-        wb = wx.Book("add macro.xlsm")
-=======
         wb = wx.Book("add_macro.xlsm")
->>>>>>> dev
         macro1 = wb.macro("Module1.SetPPTSlidesFromFolderAndExitExcel")
         macro1()
 
