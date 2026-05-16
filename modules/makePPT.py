@@ -85,7 +85,7 @@ class MakePPT:
         text_frame = text_box.text_frame
         
         text = text_frame.add_paragraph()
-        text.text = f"Pálya: 11 Kincsem Park"
+        text.text = f"Pálya: 10 Kincsem Park"
         text.font.size = Pt(36)
         text.font.bold = True
         text.font.color.rgb = RGBColor(255, 229, 121)
